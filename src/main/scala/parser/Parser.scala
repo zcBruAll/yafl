@@ -95,6 +95,7 @@ object Parser:
       case Some(Token.integer) => integerLiteral
       case Some(Token.identifier) => termIdentifier
       case Some(Token.leftParenthesis) => lambdaOrParenthesized
+      case Some(Token.`if`) => conditional
       case _ => throw expected("term")
 
   /** Parses a Boolean literal. */
@@ -152,6 +153,21 @@ object Parser:
                 // `parameterOrTerm` is just a term; parse the closing parenthesis.
                 take(Token.rightParenthesis, "')'").map((_) => parameterOrTerm)
           }
+    }
+
+  /** Parses a conditional expression ('if' term 'then' term 'else' term) */
+  private def conditional(using Context): Result[Syntax[TermTree.Conditional]] =
+    take(Token.`if`, "'if'").and { start => 
+      term.andDiscard(take(Token.`then`, "'then'")).and { condition => 
+        term.andDiscard(take(Token.`else`, "'else'")).and { success =>
+          term.map { failure => 
+            Syntax(
+              TermTree.Conditional(condition, success, failure),
+              start.span.extendedToCover(failure.span)
+            )
+          }
+        }
+      }
     }
 
   /** The name of a parameter and its ascription. */
