@@ -97,6 +97,7 @@ object Parser:
       case Some(Token.leftParenthesis) => lambdaOrParenthesized
       case Some(Token.`if`) => conditional
       case Some(Token.let) => binding
+      case Some(Token.leftBracket) => typeAbstraction
       case _ => throw expected("term")
 
   /** Parses a Boolean literal. */
@@ -171,6 +172,7 @@ object Parser:
       }
     }
 
+  /** Parses a binding (let identifier = term; term) */
   private def binding(using Context): Result[Syntax[TermTree.Binding]] =
     take(Token.let, "'let'").and { start =>
       termIdentifier.andDiscard(take(Token.equal, "'='")).and { name => 
@@ -183,6 +185,22 @@ object Parser:
           }
         }
       }
+    }
+
+  /** Parses a type abstraction ([T] => term) */
+  private def typeAbstraction(using Context): Result[Syntax[TermTree.TypeAbstraction]] =
+    take(Token.leftBracket, "'['").and { start => 
+      typeIdentifier
+        .andDiscard(take(Token.rightBracket, "']'"))
+        .andDiscard(take(Token.thickArrow, "'=>'"))
+        .and { parameter =>
+          term.map {body => 
+            Syntax(
+              TermTree.TypeAbstraction(parameter, body),
+              start.span.extendedToCover(body.span)
+            )
+          }
+        }
     }
 
   /** The name of a parameter and its ascription. */
@@ -208,12 +226,43 @@ object Parser:
   private def simpleType(using Context): Result[Syntax[TypeTree]] =
     peek.map((t) => t.tag) match
       case Some(Token.identifier) => typeIdentifier
+      case Some(Token.leftBracket) => universalType
+      case Some(Token.leftParenthesis) => parenthesizedType
       case _ => throw expected("type")
 
   /** Parses a type identifier. */
   private def typeIdentifier(using Context): Result[Syntax[TypeTree.Variable]] =
     take(Token.identifier, "identifier")
       .map((n) => Syntax(TypeTree.Variable(n.text.toString), n.span))
+
+  /** Parses a universal type ([T] => type) */
+  private def universalType(using Context): Result[Syntax[TypeTree.ForAll]] =
+    take(Token.leftBracket, "'['").and { start =>
+      typeIdentifier
+        .andDiscard(take(Token.rightBracket, "']'"))
+        .andDiscard(take(Token.thickArrow, "']'"))
+        .and { parameter =>
+          typ3.map { body => 
+            Syntax(
+              TypeTree.ForAll(parameter, body),
+              start.span.extendedToCover(body.span)
+            )
+          }
+        }
+    }
+
+  /** Parses a parenthesized type */
+  private def parenthesizedType(using Context): Result[Syntax[TypeTree]] =
+    take(Token.leftParenthesis, "'('").and { start => 
+      typ3.and { body =>
+        take(Token.rightParenthesis, "')'").map { end =>
+          Syntax(
+            body.value,
+            start.span.extendedToCover(end.span)
+          )
+        }
+      }
+    }
 
   /** Returns the next token in `source`, if any. */
   private def peek(using Context): Option[Token] =
