@@ -126,6 +126,7 @@ object Parser:
       case Some(Token.`if`) => conditional
       case Some(Token.let) => binding
       case Some(Token.leftBracket) => typeAbstraction
+      case Some(Token.fix) => recursiveAbstraction
       case _ => throw expected("term")
 
   /** Parses a Boolean literal. */
@@ -205,7 +206,7 @@ object Parser:
       }
     }
 
-  /** Parses a binding (let identifier = term; term) */
+  /** Parses a binding ('let' identifier '=' term ';' term) */
   private def binding(using Context): Result[Syntax[TermTree.Binding]] =
     take(Token.let, "'let'").and { start =>
       termIdentifier.andDiscard(take(Token.equal, "'='")).and { name => 
@@ -220,7 +221,7 @@ object Parser:
       }
     }
 
-  /** Parses a type abstraction ([T] => term) */
+  /** Parses a type abstraction ([T] '=>' term) */
   private def typeAbstraction(using Context): Result[Syntax[TermTree.TypeAbstraction]] =
     take(Token.leftBracket, "'['").and { start => 
       typeIdentifier
@@ -234,6 +235,21 @@ object Parser:
             )
           }
         }
+    }
+
+  /** Parses a recursive abstraction ('fix' identifier ':' type '=' term) */
+  private def recursiveAbstraction(using Context): Result[Syntax[TermTree.RecursiveAbstraction]] =
+    take(Token.fix, "'fix'").and { start =>
+      termIdentifier.andDiscard(take(Token.colon, "':'")).and { name =>
+        typ3.andDiscard(take(Token.equal, "'='")).and { ascription =>
+          term.map { definition =>
+            Syntax(
+              TermTree.RecursiveAbstraction(name, ascription, definition),
+              start.span.extendedToCover(definition.span)
+            )
+          }
+        }
+      }
     }
 
   /** The name of a parameter and its ascription. */

@@ -149,7 +149,7 @@ All tasks have an associated test that you can use to exercise your implementati
 
   Although the grammar specifies that more than one type argument may be supplied, you can implement this step assuming that all type applications have exactly one argument.
 
-- [ ] **Recursive abstractions** (required)
+- [x] **Recursive abstractions** (required)
 
   Recursive type abstractions have the form `fix x : T = f` where `x` is an identifier, `T` a type, and `f` an arbitrary term.
   Since the construction starts with a dedicated token, it can be recognized in the same way as other simple terms like bindings and conditionals.
