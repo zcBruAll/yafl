@@ -82,7 +82,17 @@ object Parser:
 
   /** Parses a simple term of the application of a prefix operator. */
   private def prefixTerm(using Context): Result[Syntax[TermTree]] =
-    typeApplication
+    peek.map((t) => t.tag) match
+      case Some(Token.operator) =>
+        prefixOperator.and { op =>
+          prefixTerm.map { rhs =>
+            Syntax(
+              TermTree.TermApplication(op, rhs),
+              op.span.extendedToCover(rhs.span)
+            )
+          }
+        }
+      case _ => typeApplication
 
   /** Parses a simple term or a type application. */
   private def typeApplication(using Context): Result[Syntax[TermTree]] =
@@ -119,6 +129,11 @@ object Parser:
   private def infixOperator(using Context): Result[Syntax[TermTree.Variable]] =
     take(Token.operator, "operator")
       .map((n) => Syntax(TermTree.Variable(s"infix${n.text}"), n.span))
+
+  /** Parses a prefix operator */
+  private def prefixOperator(using Context): Result[Syntax[TermTree.Variable]] =
+    take(Token.operator, "operator")
+      .map((n) => Syntax(TermTree.Variable(s"prefix${n.text}"), n.span))
 
   /** Parses a lambda or a parenthesized term. */
   private def lambdaOrParenthesized(using Context): Result[Syntax[TermTree]] =
