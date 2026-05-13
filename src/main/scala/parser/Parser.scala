@@ -96,6 +96,7 @@ object Parser:
       case Some(Token.identifier) => termIdentifier
       case Some(Token.leftParenthesis) => lambdaOrParenthesized
       case Some(Token.`if`) => conditional
+      case Some(Token.let) => binding
       case _ => throw expected("term")
 
   /** Parses a Boolean literal. */
@@ -164,6 +165,20 @@ object Parser:
             Syntax(
               TermTree.Conditional(condition, success, failure),
               start.span.extendedToCover(failure.span)
+            )
+          }
+        }
+      }
+    }
+
+  private def binding(using Context): Result[Syntax[TermTree.Binding]] =
+    take(Token.let, "'let'").and { start =>
+      termIdentifier.andDiscard(take(Token.equal, "'='")).and { name => 
+        term.andDiscard(take(Token.semicolon, "';'")).and { initializer => 
+          term.map { body =>
+            Syntax(
+              TermTree.Binding(name, initializer, body),
+              start.span.extendedToCover(body.span)
             )
           }
         }
