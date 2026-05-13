@@ -235,7 +235,19 @@ object Parser:
 
   /** Parses a type. */
   private def typ3(using Context): Result[Syntax[TypeTree]] =
-    simpleType
+    simpleType.and { domain =>
+      peek.map((t) => t.tag) match
+        case Some(Token.thinArrow) =>
+          take(Token.thinArrow, "'->'").and { arrow =>
+            typ3.map { codomain =>
+              Syntax(
+                TypeTree.Arrow(domain, codomain),
+                domain.span.extendedToCover(codomain.span)
+              )
+            }
+          }
+        case _ => result(domain)
+    }
 
   /** Parses a simple type. */
   private def simpleType(using Context): Result[Syntax[TypeTree]] =

@@ -128,7 +128,7 @@ All tasks have an associated test that you can use to exercise your implementati
 
   Like for type abstractions, although the grammar specifies that a universal type may be introduced with more than one type variable, you can implement this step assuming that there is exactly one.
 
-- [ ] **Arrow types** (required)
+- [x] **Arrow types** (required)
 
   Arrow types have the form `T -> U`.
   Consequently, unlike the constructions mentioned above, the parser cannot simply use a single token to recognize the start of an arrow.
