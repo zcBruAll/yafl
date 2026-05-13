@@ -142,7 +142,7 @@ All tasks have an associated test that you can use to exercise your implementati
   One describes functions from `T` to `U -> V`, the other describes functions from `T -> U` to `V`.
   Fortunately, since no other type construction involves parentheses, the occurrence of an opening parenthesis at the start of a type expression signals the presence of a parenthesized type.
 
-- [ ] **Type applications** (required)
+- [x] **Type applications** (required)
 
   Type applications have the form `e [T]`.
   Similarly to arrow types, the occurrence of a left bracket following a term signals the presence of a type application.

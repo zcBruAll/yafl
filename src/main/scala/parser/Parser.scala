@@ -96,7 +96,25 @@ object Parser:
 
   /** Parses a simple term or a type application. */
   private def typeApplication(using Context): Result[Syntax[TermTree]] =
-    simpleTerm
+    def loop(lhs: Syntax[TermTree])(using Context): Result[Syntax[TermTree]] =
+      peek.map((t) => t.tag) match
+        case Some(Token.leftBracket) =>
+          take(Token.leftBracket, "'['").and { temp =>
+            typ3.and { argument =>
+              take(Token.rightBracket, "']'").and { end =>
+                loop(
+                  Syntax(
+                    TermTree.TypeApplication(lhs, argument),
+                    lhs.span.extendedToCover(end.span)
+                  )
+                )
+              }
+            }
+          }
+        case _ =>
+          result(lhs)
+
+    simpleTerm.and(loop)
 
   /** Parses a simple term. */
   private def simpleTerm(using Context): Result[Syntax[TermTree]] =
@@ -267,7 +285,7 @@ object Parser:
     take(Token.leftBracket, "'['").and { start =>
       typeIdentifier
         .andDiscard(take(Token.rightBracket, "']'"))
-        .andDiscard(take(Token.thickArrow, "']'"))
+        .andDiscard(take(Token.thickArrow, "'=>'"))
         .and { parameter =>
           typ3.map { body => 
             Syntax(
