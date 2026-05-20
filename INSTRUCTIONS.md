@@ -386,4 +386,4 @@ Follow these instructions to submit your work:
    - the names of the persons who worked on the task
    - references to the relevant part of your implementation
 
-3. Submit this report on [isc.hevs.ch/learn](https://isc.hevs.ch/learn/) no later than Tuesday, 26th May 23:59 (CEST).
+3. Submit this report on [isc.hevs.ch/learn](https://isc.hevs.ch/learn/) no later than Tuesday, 9th June 23:59 (CEST).
