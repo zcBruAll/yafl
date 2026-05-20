@@ -158,7 +158,7 @@ All tasks have an associated test that you can use to exercise your implementati
   In other words, these tests will fail unless your parser can properly recognize a term expression of the form `T -> U`.
   You can still write your own tests using simpler types, though.
 
-- [ ] **Multiple parameters and arguments** (optional)
+- [x] **Multiple parameters and arguments** (optional)
 
   According to the grammar, several production rules can recognize comma-separated sequences of certain constructions.
   For example, a term abstraction can be written with more than one parameter (e.g., `(x : Int, y: Int) => x + y`).

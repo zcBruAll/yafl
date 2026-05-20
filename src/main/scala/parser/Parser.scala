@@ -99,15 +99,18 @@ object Parser:
     def loop(lhs: Syntax[TermTree])(using Context): Result[Syntax[TermTree]] =
       peek.map((t) => t.tag) match
         case Some(Token.leftBracket) =>
-          take(Token.leftBracket, "'['").and { temp =>
-            typ3.and { argument =>
-              take(Token.rightBracket, "']'").and { end =>
-                loop(
-                  Syntax(
-                    TermTree.TypeApplication(lhs, argument),
-                    lhs.span.extendedToCover(end.span)
-                  )
-                )
+          take(Token.leftBracket, "'['").and { _ =>
+            typ3.and { firstArg =>
+              trailingTypeArguments(List(firstArg)).and { args =>
+                take(Token.rightBracket, "']'").and { end =>
+                  val combined = args.foldRight(lhs) { (arg, acc) =>
+                    Syntax(
+                      TermTree.TypeApplication(acc, arg), 
+                      acc.span.extendedToCover(end.span)
+                    )
+                  }
+                  loop(combined)
+                }
               }
             }
           }
@@ -224,17 +227,22 @@ object Parser:
   /** Parses a type abstraction ([T] '=>' term) */
   private def typeAbstraction(using Context): Result[Syntax[TermTree.TypeAbstraction]] =
     take(Token.leftBracket, "'['").and { start => 
-      typeIdentifier
+      typeIdentifier.and { firstParam => 
+        trailingTypeParameters(List(firstParam))
         .andDiscard(take(Token.rightBracket, "']'"))
         .andDiscard(take(Token.thickArrow, "'=>'"))
-        .and { parameter =>
-          term.map {body => 
+        .and { ps =>
+          term.map { body => 
+            val desugared = ps.foldLeft(body) { (b, p) => 
+              Syntax(TermTree.TypeAbstraction(p, b), p.span.extendedToCover(b.span))
+            }
             Syntax(
-              TermTree.TypeAbstraction(parameter, body),
+              desugared.value.asInstanceOf[TermTree.TypeAbstraction],
               start.span.extendedToCover(body.span)
             )
           }
         }
+      }
     }
 
   /** Parses a recursive abstraction ('fix' identifier ':' type '=' term) */
@@ -267,6 +275,26 @@ object Parser:
           .and(p => trailingTermParameters(p :: ps))
       case _ => result(ps)
 
+  /** Parses a (possibily empty) list of type parameters, each prefixed by a leading comma */
+  private def trailingTypeParameters(
+    ps: List[Syntax[TypeTree.Variable]]
+  )(using Context): Result[List[Syntax[TypeTree.Variable]]] =
+    takeIf(Token.hasTag(Token.comma)) match
+      case Some(separator) =>
+        typeIdentifier(using separator.state)
+          .and(p => trailingTypeParameters(p :: ps))
+      case _ => result(ps)
+    
+  /** Parses a (possibly empty) list of type arguments, each prefixed by a comma */
+  private def trailingTypeArguments(
+    as: List[Syntax[TypeTree]]
+  )(using Context): Result[List[Syntax[TypeTree]]] =
+    takeIf(Token.hasTag(Token.comma)) match
+      case Some(separator) =>
+        typ3(using separator.state)
+          .and(a => trailingTypeArguments(a :: as))
+      case _ => result(as)
+    
   /** Parses a type. */
   private def typ3(using Context): Result[Syntax[TypeTree]] =
     simpleType.and { domain =>
@@ -299,17 +327,22 @@ object Parser:
   /** Parses a universal type ([T] => type) */
   private def universalType(using Context): Result[Syntax[TypeTree.ForAll]] =
     take(Token.leftBracket, "'['").and { start =>
-      typeIdentifier
-        .andDiscard(take(Token.rightBracket, "']'"))
-        .andDiscard(take(Token.thickArrow, "'=>'"))
-        .and { parameter =>
-          typ3.map { body => 
-            Syntax(
-              TypeTree.ForAll(parameter, body),
-              start.span.extendedToCover(body.span)
-            )
+      typeIdentifier.and { firstParam =>
+        trailingTypeParameters(List(firstParam))
+          .andDiscard(take(Token.rightBracket, "']'"))
+          .andDiscard(take(Token.thickArrow, "'=>'"))
+          .and { ps =>
+            typ3.map { body =>
+              val desugared = ps.foldLeft(body) { (b, p) =>
+                Syntax(TypeTree.ForAll(p, b), p.span.extendedToCover(b.span))
+              }
+              Syntax(
+                desugared.value.asInstanceOf[TypeTree.ForAll],
+                start.span.extendedToCover(body.span)
+              )
+            }
           }
-        }
+      }
     }
 
   /** Parses a parenthesized type */
