@@ -204,7 +204,7 @@ These can be implemented in any order, but note that normalization may help dram
 Most available tests may require the application of more than one optimization to pass.
 Further, all tests rely on the parser behaving correctly.
 
-- [ ] **Normalization** (optional)
+- [x] **Normalization** (optional)
 
   Equivalent programs can come in many shapes.
   For example, `1 + x + 2` computes the same value as `1 + 2 + x`.
@@ -386,4 +386,4 @@ Follow these instructions to submit your work:
    - the names of the persons who worked on the task
    - references to the relevant part of your implementation
 
-3. Submit this report on [isc.hevs.ch/learn](https://isc.hevs.ch/learn/) no later than Tuesday, 9th June 23:59 (CEST).
+3. Submit this report on [isc.hevs.ch/learn](https://isc.hevs.ch/learn/) no later than Tuesday, 26th May 23:59 (CEST).

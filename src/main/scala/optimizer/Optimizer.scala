@@ -7,45 +7,114 @@ object Optimizer:
 
   /** Returns `program` optimized. */
   def optimize(program: TypedProgram): TypedProgram =
-    val (optimized, updated) = constantFoldRecursively(program.syntax, program.types)
+    val (optimized, updated) = rewrite(program.syntax, program.types)
     TypedProgram(optimized, updated)
 
-  /** Substitutes constant expressions in `tree` with their results, returning a an updated syntax
-    * tree along with a map from each term to its type.
-    */
-  private def constantFoldRecursively(
+  /** Recursively traverses and optimizes the syntax tree from the bottom up */
+  private def rewrite(
       tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
   ): (Syntax[TermTree], TypedProgram.TypeAssignments) = {
-    constantFold(tree) match
-      case Some(s) =>
-        // Constant folding succeeded; return the updated tree.
-        (s, Map(s -> types(tree)))
+    val (optimizedChild, updatedTypes) = tree.value match
+      case e: TermTree.TermApplication =>
+        val (f, ts1) = rewrite(e.abstraction, types)
+        val (a, ts2) = rewrite(e.argument, ts1)
+        (Syntax(TermTree.TermApplication(f, a), tree.span), ts2)
+      case e: TermTree.Conditional =>
+        val (c, ts1) = rewrite(e.condition, types)
+        val (s, ts2) = rewrite(e.success, ts1)
+        val (f, ts3) = rewrite(e.failure, ts2)
+        (Syntax(TermTree.Conditional(c, s, f), tree.span), ts3)
+      case e: TermTree.Binding =>
+        val (i, ts1) = rewrite(e.initializer, types)
+        val (b, ts2) = rewrite(e.body, ts1)
+        (Syntax(TermTree.Binding(e.name, i, b), tree.span), ts2)
+      case e: TermTree.TermAbstraction =>
+        val (b, ts) = rewrite(e.body, types)
+        (Syntax(TermTree.TermAbstraction(e.parameter, e.ascription, b), tree.span), ts)
+      case e: TermTree.TypeAbstraction =>
+        val (b, ts) = rewrite(e.body, types)
+        (Syntax(TermTree.TypeAbstraction(e.parameter, b), tree.span), ts)
+      case e: TermTree.TypeApplication =>
+        val (a, ts) = rewrite(e.abstraction, types)
+        (Syntax(TermTree.TypeApplication(a, e.argument), tree.span), ts)
+      case e: TermTree.RecursiveAbstraction =>
+        val (b, ts) = rewrite(e.definition, types)
+        (Syntax(TermTree.RecursiveAbstraction(e.name, e.ascription, b), tree.span), ts)
+      case _ =>
+        (tree, types)
 
-      case _ => tree.value match
-        case e: TermTree.TermApplication =>
-          // Apply the optimization recursively.
-          val (f, ts) = constantFoldRecursively(e.abstraction, types)
-          val (a, us) = constantFoldRecursively(e.argument, types)
-          val updated = Syntax(TermTree.TermApplication(f, a), tree.span)
+    val tsWithChild = if optimizedChild != tree then
+        updatedTypes.updated(optimizedChild, types(tree))
+      else 
+        updatedTypes
+    
+    normalize(optimizedChild, tsWithChild)  match
+      case Some((normalized, tsWithNorm)) =>
+        return rewrite(normalized, tsWithNorm)
+      case None => 
+    
 
-          // Fold the result if possible.
-          constantFold(updated) match
-            case Some(s) => (s, Map(s -> types(tree)))
-            case _ => (updated, (ts ++ us).updated(updated, types(tree)))
-
-        case _ =>
-          (tree, Map(tree -> types(tree)))
+    constantFold(optimizedChild, tsWithChild) match
+      case Some((folded, tsWithFold)) =>
+        rewrite(folded, tsWithFold)
+      case None =>
+        (optimizedChild, updatedTypes)
   }
 
+  /** Normalize the syntax tree by floating bindings and shifting constants left */
+  private def normalize(
+      tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
+    import TermTree.TermApplication as F
+    import TermTree.Binding as B
+    val originalType = types(tree)
+
+    tree.value match
+      // Binding is in the RHS of TermApplication: f (let x = 1; b) => let x = 1; f b
+      case F(f, Syntax(B(name, initializer, body), _)) =>
+        val newApp = Syntax(F(f, body), tree.span)
+        val newTree = Syntax(B(name, initializer, newApp), tree.span)
+        val ts = types.updated(newApp, originalType).updated(newTree, originalType)
+        Some((newTree, ts))
+      // Binding is in the LHS of TermApplication: (let x = 1; b) a => let x = 1; b a
+      case F(Syntax(B(name, initializer, body), _), a) =>
+        val newApp = Syntax(F(body, a), tree.span)
+        val newTree = Syntax(B(name, initializer, newApp), tree.span)
+        val ts = types.updated(newApp, originalType).updated(newTree, originalType)
+        Some((newTree, ts))
+      // Commutativity for Add: x + c => c + x (c is a constant, x is not)
+      case F(app @ Syntax(F(op @ InfixOperator(f), x), _), IntegerConstant(c)) 
+          if f == InfixOperator.Add && !x.value.isInstanceOf[TermTree.IntegerLiteral] =>
+        val constant = Syntax(TermTree.IntegerLiteral(c), tree.span)
+        val newInner = Syntax(F(op, constant), app.span)
+        val newTree = Syntax(F(newInner, x), tree.span)
+        val ts = types.updated(constant, Type.Ground.Int)
+                      .updated(newInner, types(app))
+                      .updated(newTree, originalType)
+        Some((newTree, ts))
+      // Assossiacivity for Add: (c1 + x) + c2 => (c1 + c2) + x (cX are constants, x is not)
+      case F(appOut @ Syntax(F(op1 @ InfixOperator(f1), Syntax(F(appInner @ Syntax(F(op2 @ InfixOperator(f2), IntegerConstant(c1)), _), x), _)), _), IntegerConstant(c2))
+          if f1 == InfixOperator.Add && f2 == InfixOperator.Add =>
+        val constant = Syntax(TermTree.IntegerLiteral(c1 + c2), tree.span)
+        val newInner = Syntax(F(op1, constant), appInner.span)
+        val newTree = Syntax(F(newInner, x), tree.span)
+        val ts = types.updated(constant, Type.Ground.Int)
+                      .updated(newInner, types(appOut)) 
+                      .updated(newTree, originalType)
+        Some((newTree, ts))
+      case _ => None
+
   /** Returns a literal denoting the result of `tree` iff it represents a constant expression. */
-  private def constantFold(tree: Syntax[TermTree]): Option[Syntax[TermTree]] =
+  private def constantFold(tree: Syntax[TermTree], types: TypedProgram.TypeAssignments): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
     import TermTree.TermApplication as F
     tree.value match
       case F(Syntax(F(InfixOperator(f), IntegerConstant(lhs)), _), IntegerConstant(rhs)) =>
         val n = f match
           case InfixOperator.Add => lhs + rhs
           case InfixOperator.Sub => lhs - rhs
-        Some(Syntax(TermTree.IntegerLiteral(lhs + rhs), tree.span))
+        val newTree = Syntax(TermTree.IntegerLiteral(n), tree.span)
+        val ts = types.updated(newTree, Type.Ground.Int)
+        Some((newTree, ts))
       case _ => None
 
 end Optimizer

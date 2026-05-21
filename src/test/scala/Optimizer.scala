@@ -14,11 +14,12 @@ final class OptimizerTests extends munit.FunSuite:
 
   test("normalization"):
     import TermTree.TermApplication as F
-    val optimized = optimize("x + 1")
+    import TermTree.Binding as B
+    val optimized = optimize("let x = 0; x + 1")
     (optimized.syntax.value : @unchecked) match
-      case F(lhs, Syntax(TermTree.IntegerLiteral(1), _)) =>
+      case B(_, _, Syntax(F(lhs, Syntax(TermTree.Variable("x"), _)), _)) =>
         (lhs.value : @unchecked) match
-          case F(_, Syntax(TermTree.Variable("x"), _)) => ()
+          case F(_, Syntax(TermTree.IntegerLiteral(1), _)) => ()
 
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def optimize(input: String): TypedProgram =
