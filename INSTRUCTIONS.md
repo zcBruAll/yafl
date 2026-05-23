@@ -228,7 +228,7 @@ Further, all tests rely on the parser behaving correctly.
   For example, `(z : Int) => let x = z : x + x` is already in normal form because moving the binding outside of the term abstraction would leave `z` unbound.
 
 
-- [ ] **Dead code elimination** (optional)
+- [x] **Dead code elimination** (optional)
 
   [Dead code elimination](https://en.wikipedia.org/wiki/Dead-code_elimination) consists of removing unreachable code from the program.
   For example, both `if true then 1 else 2 * 3` and `let x = 2 ; a` can be rewritten `1`.

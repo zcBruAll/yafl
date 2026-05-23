@@ -56,9 +56,16 @@ object Optimizer:
 
     constantFold(optimizedChild, tsWithChild) match
       case Some((folded, tsWithFold)) =>
-        rewrite(folded, tsWithFold)
+        return rewrite(folded, tsWithFold)
       case None =>
         (optimizedChild, updatedTypes)
+
+    eliminateDeadCode(optimizedChild, tsWithChild) match
+      case Some((eliminated, tsWithElimination)) => 
+        return rewrite(eliminated, tsWithElimination)
+      case None => 
+        (optimizedChild, tsWithChild)
+    
   }
 
   /** Normalize the syntax tree by floating bindings and shifting constants left */
@@ -116,6 +123,41 @@ object Optimizer:
         val ts = types.updated(newTree, Type.Ground.Int)
         Some((newTree, ts))
       case _ => None
+
+  private def eliminateDeadCode(
+    tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
+    val originalType = types(tree)
+
+    tree.value match
+      case TermTree.Conditional(Syntax(TermTree.BooleanLiteral(true), _), success, _) =>
+        Some((success, types.updated(success, originalType)))
+      case TermTree.Conditional(Syntax(TermTree.BooleanLiteral(false), _), _, failure) =>
+        Some((failure, types.updated(failure, originalType)))
+      case TermTree.Binding(name, _, body) if !isFreeIn(name.value.name, body) =>
+        Some((body, types.updated(body, originalType)))
+      case _ => None
+    
+
+  private def isFreeIn(variableName: String, tree: Syntax[TermTree]): Boolean =
+    tree.value match
+      case TermTree.Variable(name) => name == variableName
+      case TermTree.TermAbstraction(parameter, _, body) =>
+        if parameter.value.name == variableName then false else isFreeIn(variableName, body)
+      case TermTree.Binding(name, initializer, body) =>
+        isFreeIn(variableName, initializer) || (if name.value.name == variableName then false else isFreeIn(variableName, body))
+      case TermTree.RecursiveAbstraction(name, _, body) =>
+        if name.value.name == variableName then false else isFreeIn(variableName, body)
+      case TermTree.TermApplication(abstraction, argument) =>
+        isFreeIn(variableName, abstraction) || isFreeIn(variableName, argument)
+      case TermTree.TypeAbstraction(_, body) =>
+        isFreeIn(variableName, body)
+      case TermTree.TypeApplication(abstraction, _) =>
+        isFreeIn(variableName, abstraction)
+      case TermTree.Conditional(condition, success, failure) =>
+        isFreeIn(variableName, condition) || isFreeIn(variableName, success) || isFreeIn(variableName, failure)
+      case _ => false
+    
 
 end Optimizer
 
