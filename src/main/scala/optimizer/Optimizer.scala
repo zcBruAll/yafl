@@ -60,6 +60,11 @@ object Optimizer:
       case None =>
         (optimizedChild, updatedTypes)
 
+    propagateConstants(optimizedChild, tsWithChild) match
+      case Some((propagated, tsWithProp)) =>
+        return rewrite(propagated, tsWithProp)
+      case None =>
+
     eliminateDeadCode(optimizedChild, tsWithChild) match
       case Some((eliminated, tsWithElimination)) => 
         return rewrite(eliminated, tsWithElimination)
@@ -119,11 +124,14 @@ object Optimizer:
         val n = f match
           case InfixOperator.Add => lhs + rhs
           case InfixOperator.Sub => lhs - rhs
+          case InfixOperator.Mul => lhs * rhs
+          case InfixOperator.Div => lhs / rhs
         val newTree = Syntax(TermTree.IntegerLiteral(n), tree.span)
         val ts = types.updated(newTree, Type.Ground.Int)
         Some((newTree, ts))
       case _ => None
 
+  /** Eliminates dead code (useless bindings and hardcoded conditionals) */
   private def eliminateDeadCode(
     tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
   ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
@@ -138,7 +146,7 @@ object Optimizer:
         Some((body, types.updated(body, originalType)))
       case _ => None
     
-
+  /** Checks if a variable name occurs free (unshadowed) inside a term tree */
   private def isFreeIn(variableName: String, tree: Syntax[TermTree]): Boolean =
     tree.value match
       case TermTree.Variable(name) => name == variableName
@@ -157,7 +165,64 @@ object Optimizer:
       case TermTree.Conditional(condition, success, failure) =>
         isFreeIn(variableName, condition) || isFreeIn(variableName, success) || isFreeIn(variableName, failure)
       case _ => false
-    
+
+  /** Recursively substitutes free occurrences of `target` with `replacement` in `tree` */
+  private def substitute(
+      target: String, replacement: Syntax[TermTree], tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): (Syntax[TermTree], TypedProgram.TypeAssignments) = {
+    if !isFreeIn(target, tree) then return (tree, types)
+
+    val originalType = types(tree)
+
+    val (newTree, newTypes) = tree.value match
+      case TermTree.Variable(n) if n == target =>
+        val newConst = Syntax(replacement.value, tree.span)
+        (newConst, types.updated(newConst, originalType))
+      case TermTree.TermAbstraction(p, a, b) =>
+        val (newB, ts) = if p.value.name == target then (b, types) else substitute(target, replacement, b, types)
+        (Syntax(TermTree.TermAbstraction(p, a, newB), tree.span), ts)
+      case TermTree.Binding(n, i, b) =>
+        val (newI, ts1) = substitute(target, replacement, i, types)
+        val (newB, ts2) = if n.value.name == target then (b, ts1) else substitute(target, replacement, b, ts1)
+        (Syntax(TermTree.Binding(n, newI, newB), tree.span), ts2)
+      case TermTree.TermApplication(f, a) =>
+        val (newF, ts1) = substitute(target, replacement, f, types)
+        val (newA, ts2) = substitute(target, replacement, a, ts1)
+        (Syntax(TermTree.TermApplication(newF, newA), tree.span), ts2)
+      case TermTree.Conditional(c, s, f) =>
+        val (newC, ts1) = substitute(target, replacement, c, types)
+        val (newS, ts2) = substitute(target, replacement, s, ts1)
+        val (newF, ts3) = substitute(target, replacement, f, ts2)
+        (Syntax(TermTree.Conditional(newC, newS, newF), tree.span), ts3)
+      case TermTree.TypeApplication(a, t) =>
+        val (newA, ts1) = substitute(target, replacement, a, types)
+        (Syntax(TermTree.TypeApplication(newA, t), tree.span), ts1)
+      case TermTree.TypeAbstraction(p, b) =>
+        val (newB, ts1) = substitute(target, replacement, b, types)
+        (Syntax(TermTree.TypeAbstraction(p, newB), tree.span), ts1)
+      case TermTree.RecursiveAbstraction(n, a, d) =>
+        val (newD, ts1) = if n.value.name == target then (d, types) else substitute(target, replacement, d, types)
+        (Syntax(TermTree.RecursiveAbstraction(n, a, newD), tree.span), ts1)
+      case _ => (tree, types)
+
+    if newTree != tree then
+      (newTree, newTypes.updated(newTree, originalType))
+    else
+      (tree, types)
+  }
+
+  /** Propagates constants by substituting them into the bodies of their bindings */
+  private def propagateConstants(
+      tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
+    val originalType = types(tree)
+
+    tree.value match
+      case TermTree.Binding(name, init, body) if isConstant(init) && isFreeIn(name.value.name, body) =>
+        val (newBody, ts) = substitute(name.value.name, init, body, types)
+        val newTree = Syntax(TermTree.Binding(name, init, newBody), tree.span)
+        Some((newTree, ts.updated(newTree, originalType)))
+      case _ => None
 
 end Optimizer
 
@@ -170,3 +235,10 @@ private object IntegerConstant:
       case _ => None
 
 end IntegerConstant
+
+private def isConstant(tree: Syntax[TermTree]): Boolean =
+  tree.value match
+    case _: TermTree.IntegerLiteral => true
+    case _: TermTree.BooleanLiteral => true
+    case TermTree.UnitLiteral => true
+    case _ => false  

@@ -236,7 +236,7 @@ Further, all tests rely on the parser behaving correctly.
   For this task, your goal is to eliminate conditionals whose condition is provably `true` or `false` as well as bindings that have no use.
   The examples above illustrate.
 
-- [ ] **Constant propagation** (optional)
+- [x] **Constant propagation** (optional)
 
   Constant propagation consists of replacing variables denoting a constant by their values.
   For example, `let x = 2 ; x + y` can be rewritten `2 + y`.
