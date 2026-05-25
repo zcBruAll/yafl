@@ -241,7 +241,7 @@ Further, all tests rely on the parser behaving correctly.
   Constant propagation consists of replacing variables denoting a constant by their values.
   For example, `let x = 2 ; x + y` can be rewritten `2 + y`.
 
-- [ ] **Inlining** (optional)
+- [x] **Inlining** (optional)
 
   Inlining consists of applying functions at compile-time.
   More formally, it is done by performing beta-reduction on term applications having a term abstraction for their callee.

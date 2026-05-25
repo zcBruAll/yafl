@@ -2,6 +2,7 @@ package yafl.optimizer
 
 import yafl.syntax.{InfixOperator, Syntax, TermTree}
 import yafl.typer.{Type, TypedProgram}
+import yafl.syntax.TermTree.TermAbstraction
 
 object Optimizer:
 
@@ -64,6 +65,13 @@ object Optimizer:
       case Some((propagated, tsWithProp)) =>
         return rewrite(propagated, tsWithProp)
       case None =>
+
+    inlineFunctions(optimizedChild, tsWithChild) match
+      case Some((inlined, tsWithInline)) =>
+        return rewrite(inlined, tsWithInline)
+      case None =>
+        (optimizedChild, tsWithChild)
+    
 
     eliminateDeadCode(optimizedChild, tsWithChild) match
       case Some((eliminated, tsWithElimination)) => 
@@ -223,6 +231,22 @@ object Optimizer:
         val newTree = Syntax(TermTree.Binding(name, init, newBody), tree.span)
         Some((newTree, ts.updated(newTree, originalType)))
       case _ => None
+
+  /** Inline function application */
+  private def inlineFunctions(
+    tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
+    val originalType = types(tree)
+
+    tree.value match
+      case TermTree.TermApplication(
+        Syntax(TermTree.TermAbstraction(parameter, _, body), _),
+        argument
+      ) => 
+        val (newBody, ts) = substitute(parameter.value.name, argument, body, types)
+
+        Some((newBody, ts.updated(newBody, originalType)))
+      case _ => None    
 
 end Optimizer
 

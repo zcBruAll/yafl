@@ -27,6 +27,12 @@ final class OptimizerTests extends munit.FunSuite:
     val optimized = optimize("let x = 2 ; x + 2 * (x * x)")
     (optimized.syntax.value : @unchecked) match
       case TermTree.IntegerLiteral(10) => ()
+  
+  test("inlining functions"):
+    val optimized = optimize("((x: Int) => x + x) 5")
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.IntegerLiteral(10) => ()
 
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def optimize(input: String): TypedProgram =
