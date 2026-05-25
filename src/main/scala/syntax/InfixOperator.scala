@@ -4,6 +4,7 @@ package yafl.syntax
 enum InfixOperator:
 
   case Add, Sub, Mul, Div
+  case Eq, Neq, Lt, Lte, Gt, Gte
 
 object InfixOperator:
 
@@ -14,6 +15,12 @@ object InfixOperator:
         case "infix-" => Some(Sub)
         case "infix*" => Some(Mul)
         case "infix/" => Some(Div)
+        case "infix==" => Some(Eq)
+        case "infix!=" => Some(Neq)
+        case "infix<"  => Some(Lt)
+        case "infix<=" => Some(Lte)
+        case "infix>"  => Some(Gt)
+        case "infix>=" => Some(Gte)
         case _ => None
       case _ => None
 

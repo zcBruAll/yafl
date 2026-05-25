@@ -7,10 +7,15 @@ import yafl.typer.{TypedProgram, Typer}
 
 final class OptimizerTests extends munit.FunSuite:
 
-  test("constant folding"):
+  test("Integer constant folding"):
     val optimized = optimize("1 + 2 + 3")
     (optimized.syntax.value : @unchecked) match
       case TermTree.IntegerLiteral(6) => ()
+
+  test("Boolean constant folding"):
+    val optimized = optimize("1 > 2")
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.BooleanLiteral(false) => ()
 
   test("normalization"):
     import TermTree.TermApplication as F

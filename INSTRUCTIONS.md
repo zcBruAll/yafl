@@ -283,7 +283,7 @@ These can be implemented in any order, although it is recommended to start with 
 Note that all available tests rely on the parser behaving correctly.
 Most tests can only pass if you have also implemented part of the optimizer or if your compiler can handle closures.
 
-- [ ] **Built-in arithmetic and comparison** (optional)
+- [x] **Built-in arithmetic and comparison** (optional)
 
   The current implementation can only handle two built-in operations, namely addition and subtraction.
   For this task, your goal is to support the rest.

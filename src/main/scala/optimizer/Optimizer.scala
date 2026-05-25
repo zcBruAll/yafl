@@ -129,14 +129,33 @@ object Optimizer:
     import TermTree.TermApplication as F
     tree.value match
       case F(Syntax(F(InfixOperator(f), IntegerConstant(lhs)), _), IntegerConstant(rhs)) =>
-        val n = f match
-          case InfixOperator.Add => lhs + rhs
-          case InfixOperator.Sub => lhs - rhs
-          case InfixOperator.Mul => lhs * rhs
-          case InfixOperator.Div => lhs / rhs
-        val newTree = Syntax(TermTree.IntegerLiteral(n), tree.span)
-        val ts = types.updated(newTree, Type.Ground.Int)
-        Some((newTree, ts))
+        f match
+          case InfixOperator.Add | InfixOperator.Sub | InfixOperator.Mul | InfixOperator.Div =>
+            val n = f match
+              case InfixOperator.Add => lhs + rhs
+              case InfixOperator.Sub => lhs - rhs
+              case InfixOperator.Mul => lhs * rhs
+              case InfixOperator.Div => lhs / rhs
+              case _ => 0
+
+            val newTree = Syntax(TermTree.IntegerLiteral(n), tree.span)
+            val ts = types.updated(newTree, Type.Ground.Int)
+            Some((newTree, ts))
+            
+          case _ =>
+            val b = f match 
+              case InfixOperator.Eq  => lhs == rhs
+              case InfixOperator.Neq => lhs != rhs
+              case InfixOperator.Lt  => lhs < rhs
+              case InfixOperator.Lte => lhs <= rhs
+              case InfixOperator.Gt  => lhs > rhs
+              case InfixOperator.Gte => lhs >= rhs
+              case _ => false
+
+            val newTree = Syntax(TermTree.BooleanLiteral(b), tree.span)
+            val ts = types.updated(newTree, Type.Ground.Bool)
+            Some((newTree, ts))
+            
       case _ => None
 
   /** Eliminates dead code (useless bindings and hardcoded conditionals) */
