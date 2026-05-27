@@ -5,6 +5,7 @@ enum InfixOperator:
 
   case Add, Sub, Mul, Div
   case Eq, Neq, Lt, Lte, Gt, Gte
+  case And, Or
 
 object InfixOperator:
 
@@ -21,6 +22,8 @@ object InfixOperator:
         case "infix<=" => Some(Lte)
         case "infix>"  => Some(Gt)
         case "infix>=" => Some(Gte)
+        case "infix&&"  => Some(And)
+        case "infix||" => Some(Or)
         case _ => None
       case _ => None
 

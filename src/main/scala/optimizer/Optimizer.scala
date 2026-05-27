@@ -3,6 +3,7 @@ package yafl.optimizer
 import yafl.syntax.{InfixOperator, Syntax, TermTree}
 import yafl.typer.{Type, TypedProgram}
 import yafl.syntax.TermTree.TermAbstraction
+import yafl.syntax.TermTree.BooleanLiteral
 
 object Optimizer:
 
@@ -155,7 +156,18 @@ object Optimizer:
             val newTree = Syntax(TermTree.BooleanLiteral(b), tree.span)
             val ts = types.updated(newTree, Type.Ground.Bool)
             Some((newTree, ts))
-            
+      case F(Syntax(F(InfixOperator(f), Syntax(BooleanLiteral(lhs), _)), _), Syntax(BooleanLiteral(rhs), _)) =>
+        f match
+          case InfixOperator.And | InfixOperator.Or =>
+            val n = f match
+              case InfixOperator.Eq => lhs && rhs
+              case InfixOperator.Neq => lhs || rhs
+              case _ => false
+
+            val newTree = Syntax(TermTree.BooleanLiteral(n), tree.span)
+            val ts = types.updated(newTree, Type.Ground.Int)
+            Some((newTree, ts))
+          case _ => None
       case _ => None
 
   /** Eliminates dead code (useless bindings and hardcoded conditionals) */

@@ -122,6 +122,8 @@ object Emitter:
               case InfixOperator.Lte => "(i32.le_s)"
               case InfixOperator.Gt  => "(i32.gt_s)"
               case InfixOperator.Gte => "(i32.ge_s)"
+              case InfixOperator.And  => "(i32.and)"
+              case InfixOperator.Or => "(i32.or)"
             lhs ++ rhs ++ operation
           })
 
