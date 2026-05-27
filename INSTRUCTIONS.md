@@ -288,7 +288,7 @@ Most tests can only pass if you have also implemented part of the optimizer or i
   The current implementation can only handle two built-in operations, namely addition and subtraction.
   For this task, your goal is to support the rest.
 
-- [ ] **Bindings** (optional)
+- [x] **Bindings** (optional)
 
   The current implementation does not handle local bindings, which can be implemented using local variables in WebAssembly.
   For example, the expression `let x = 2 ; x + x` can be compiled to the following:
