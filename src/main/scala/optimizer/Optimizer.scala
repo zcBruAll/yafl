@@ -165,7 +165,7 @@ object Optimizer:
               case _ => false
 
             val newTree = Syntax(TermTree.BooleanLiteral(n), tree.span)
-            val ts = types.updated(newTree, Type.Ground.Int)
+            val ts = types.updated(newTree, Type.Ground.Bool)
             Some((newTree, ts))
           case _ => None
       case _ => None
