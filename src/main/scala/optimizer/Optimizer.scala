@@ -160,8 +160,8 @@ object Optimizer:
         f match
           case InfixOperator.And | InfixOperator.Or =>
             val n = f match
-              case InfixOperator.Eq => lhs && rhs
-              case InfixOperator.Neq => lhs || rhs
+              case InfixOperator.And => lhs && rhs
+              case InfixOperator.Or => lhs || rhs
               case _ => false
 
             val newTree = Syntax(TermTree.BooleanLiteral(n), tree.span)
