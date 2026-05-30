@@ -247,7 +247,7 @@ Further, all tests rely on the parser behaving correctly.
   More formally, it is done by performing beta-reduction on term applications having a term abstraction for their callee.
   For example, `((x : Int) => x + x) y` can be rewritten `y + y`.
 
-- [ ] **Common subexpression elimination** (optional, hard)
+- [x] **Common subexpression elimination** (optional, hard)
 
   [Common subexpression elimination](https://en.wikipedia.org/wiki/Common_subexpression_elimination) consists of replacing multiple occurrences of the same computation by a binding whose value is computed only once.
   For example, `(1 + x) * (1 + x)` can be rewritten `let y = 1 + x ; y + y`.

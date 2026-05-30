@@ -44,6 +44,48 @@ final class OptimizerTests extends munit.FunSuite:
     (optimized.syntax.value : @unchecked) match
       case TermTree.IntegerLiteral(10) => ()
 
+  test("common subexpression elimination basic"):
+    val optimized = optimize("(#argc + 1) * (#argc + 1)")
+    
+    import TermTree.{Binding, TermApplication, Variable}
+    
+    (optimized.syntax.value : @unchecked) match
+      case Binding(name, initializer, body) =>
+        assertEquals(name.value.name, "cse_0")
+        
+        assert(initializer.value.isInstanceOf[TermApplication])
+        
+        (body.value : @unchecked) match
+          case TermApplication(
+            Syntax(TermApplication(Syntax(Variable("infix*"), _), Syntax(Variable("cse_0"), _)), _), 
+            Syntax(Variable("cse_0"), _)
+          ) => ()
+
+  test("common subexpression elimination scoping"):
+    val optimized = optimize("(x: Int) => (x * 2) + (x * 2)")
+    
+    import TermTree.{TermAbstraction, Binding}
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermAbstraction(param, ascription, body) =>
+        assertEquals(param.value.name, "x")
+        
+        (body.value : @unchecked) match
+          case Binding(name, initializer, innerBody) =>
+            assertEquals(name.value.name, "cse_0")
+
+  test("common subexpression elimination with constant folding"):
+    val optimized = optimize("(#argc * (1 + 2)) - (#argc * (1 + 2))")
+    
+    import TermTree.{Binding, TermApplication, Variable, IntegerLiteral}
+    
+    (optimized.syntax.value : @unchecked) match
+      case Binding(name, initializer, body) =>
+        assertEquals(name.value.name, "cse_0")
+        
+        (initializer.value : @unchecked) match
+          case TermApplication(Syntax(TermApplication(Syntax(Variable("infix*"), _), _), _), Syntax(IntegerLiteral(3), _)) => ()
+
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def optimize(input: String): TypedProgram =
     Optimizer.optimize(Typer.check(Parser.parse(SourceFile("test", input))))
