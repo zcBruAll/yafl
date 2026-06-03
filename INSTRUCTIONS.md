@@ -312,7 +312,7 @@ Most tests can only pass if you have also implemented part of the optimizer or i
 
   Once compiled in WebAssembly, the two bindings must be declared at the root of the function and be given different names.
 
-- [ ] **Monomorphiation** (optional, hard)
+- [x] **Monomorphization** (optional, hard)
 
   Yafl is an implementation of [System F](https://en.wikipedia.org/wiki/System_F), meaning that it supports parametric polymorphism.
   For example, the following program shows an application of the polymorphic identity:

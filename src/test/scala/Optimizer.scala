@@ -86,6 +86,28 @@ final class OptimizerTests extends munit.FunSuite:
         (initializer.value : @unchecked) match
           case TermApplication(Syntax(TermApplication(Syntax(Variable("infix*"), _), _), _), Syntax(IntegerLiteral(3), _)) => ()
 
+  test("monomorphization basic application"):
+    val optimized = optimize("let id = [T] => (x: T) => x ; id [Int] 42")
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.IntegerLiteral(42) => ()
+
+  test("monomorphization with multiple types"):
+    val optimized = optimize("let id = [T] => (x: T) => x ; id [Bool] (1 < (id [Int] 2))")
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.BooleanLiteral(true) => ()
+  
+  test("monomorphization preserves AST shape when not fully foldable"):
+    val optimized = optimize("let id = [T] => (x: T) => x ; id [Int] #argc")
+    
+    import TermTree.{Variable, Binding}
+    
+    (optimized.syntax.value : @unchecked) match
+      case v => 
+        assert(!v.toString.contains("TypeApplication"))
+        assert(!v.toString.contains("TypeAbstraction"))
+
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def optimize(input: String): TypedProgram =
     Optimizer.optimize(Typer.check(Parser.parse(SourceFile("test", input))))

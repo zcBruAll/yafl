@@ -4,6 +4,7 @@ import yafl.syntax.{InfixOperator, Syntax, TermTree}
 import yafl.typer.{Type, TypedProgram}
 import yafl.syntax.TermTree.TermAbstraction
 import yafl.syntax.TermTree.BooleanLiteral
+import yafl.syntax.TypeTree
 
 object Optimizer:
 
@@ -66,6 +67,11 @@ object Optimizer:
       case Some((propagated, tsWithProp)) =>
         return rewrite(propagated, tsWithProp)
       case None =>
+
+    monomorphize(optimizedChild, tsWithChild) match
+    case Some((mono, tsWithMono)) =>
+      return rewrite(mono, tsWithMono)
+    case None =>
 
     inlineFunctions(optimizedChild, tsWithChild) match
       case Some((inlined, tsWithInline)) =>
@@ -462,6 +468,74 @@ object Optimizer:
     case TermTree.TypeApplication(f, _) => allVars(f)
     case _ => Set.empty
 
+  private def substituteInType(
+    target: String, replacement: Syntax[TypeTree], tree: Syntax[TypeTree]
+  ): Syntax[TypeTree] = tree.value match
+    case TypeTree.Variable(name) if name == target =>
+      Syntax(replacement.value, tree.span)
+    case TypeTree.Arrow(domain, codomain) =>
+      Syntax(TypeTree.Arrow(
+        substituteInType(target, replacement, domain),
+        substituteInType(target, replacement, codomain)
+      ), tree.span)
+    case TypeTree.ForAll(parameter, body) =>
+      if (parameter.value.name == target) tree
+      else Syntax(TypeTree.ForAll(parameter, substituteInType(target, replacement, body)), tree.span)
+    case _ => tree
+
+  private def substituteType(
+    target: String, replacement: Syntax[TypeTree], tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): (Syntax[TermTree], TypedProgram.TypeAssignments) =
+    val originalType = types(tree)
+
+    val (newTree, newTypes) = tree.value match
+      case TermTree.TermAbstraction(parameter, ascription, body) =>
+        val newAscription = substituteInType(target, replacement, ascription)
+        val (newBody, ts) = substituteType(target, newAscription, body, types)
+        (Syntax(TermTree.TermAbstraction(parameter, newAscription, newBody), tree.span), ts)
+      case TermTree.RecursiveAbstraction(name, ascription, definition) =>
+        val newAscription = substituteInType(target, replacement, ascription)
+        val (newDefinition, ts) = substituteType(target, newAscription, definition, types)
+        (Syntax(TermTree.RecursiveAbstraction(name, newAscription, newDefinition), tree.span), ts)
+      case TermTree.TypeApplication(abstraction, argument) =>
+        val (newAbstraction, ts) = substituteType(target, replacement, abstraction, types)
+        val newArgument = substituteInType(target, replacement, argument)
+        (Syntax(TermTree.TypeApplication(newAbstraction, newArgument), tree.span), ts)
+      case TermTree.TypeAbstraction(parameter, body) =>
+        if (parameter.value.name == target) (tree, types)
+        else
+          val (newBody, ts) = substituteType(target, replacement, body, types)
+          (Syntax(TermTree.TypeAbstraction(parameter, newBody), tree.span), ts)
+      case TermTree.Binding(name, initializer, body) =>
+        val (newInitializer, ts1) = substituteType(target, replacement, initializer, types)
+        val (newBody, ts2) = substituteType(target, replacement, body, ts1)
+        (Syntax(TermTree.Binding(name, newInitializer, newBody), tree.span), ts2)
+      case TermTree.TermApplication(function, argument) =>
+        val (newFunction, ts1) = substituteType(target, replacement, function, types)
+        val (newArgument, ts2) = substituteType(target, replacement, argument, ts1)
+        (Syntax(TermTree.TermApplication(newFunction, newArgument), tree.span), ts2)
+      case TermTree.Conditional(condition, success, failure) =>
+        val (newCondition, ts1) = substituteType(target, replacement, condition, types)
+        val (newSuccess, ts2) = substituteType(target, replacement, success, ts1)
+        val (newFailure, ts3) = substituteType(target, replacement, failure, ts2)
+        (Syntax(TermTree.Conditional(newCondition, newSuccess, newFailure), tree.span), ts3)
+      case _ => (tree, types)
+    
+    if (newTree != tree) (newTree, newTypes.updated(newTree, originalType))
+    else (tree, types)
+    
+  private def monomorphize(
+    tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): Option[(Syntax[TermTree], TypedProgram.TypeAssignments)] =
+    tree.value match
+      case TermTree.TypeApplication(
+        Syntax(TermTree.TypeAbstraction(parameter, body), _),
+        argument
+      ) =>
+        val (newBody, ts) = substituteType(parameter.value.name, argument, body, types)
+        Some((newBody, ts.updated(newBody, types(tree))))
+      case _ => None    
+  
 end Optimizer
 
 /** A pattern for recognizing integer constants. */
@@ -479,4 +553,6 @@ private def isConstant(tree: Syntax[TermTree]): Boolean =
     case _: TermTree.IntegerLiteral => true
     case _: TermTree.BooleanLiteral => true
     case TermTree.UnitLiteral => true
+    case _: TermTree.TypeAbstraction => true
+    case _: TermTree.TermAbstraction => true
     case _ => false  
