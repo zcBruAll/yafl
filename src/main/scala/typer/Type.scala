@@ -78,7 +78,7 @@ object Type:
   case class Arrow(domain: Type, codomain: Type) extends Type:
 
     override def map(transform: Type => Type): Type =
-      transform(Arrow(transform(domain), transform(codomain)))
+      transform(Arrow(domain.map(transform), codomain.map(transform)))
 
     override def contains(that: Type.Variable.Unification): Boolean =
       domain.contains(that) || domain.contains(that)
@@ -103,7 +103,7 @@ object Type:
       }
 
     override def map(transform: Type => Type): Type =
-      transform(ForAll(transform(body)))
+      transform(ForAll(body.map(transform)))
 
     override def contains(that: Type.Variable.Unification): Boolean =
       body.contains(that)

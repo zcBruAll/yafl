@@ -97,6 +97,18 @@ final class OptimizerTests extends munit.FunSuite:
     
     (optimized.syntax.value : @unchecked) match
       case TermTree.BooleanLiteral(true) => ()
+
+  test("monomorphization with arrow types"):
+    val program = """
+      let applyTwice = [T] => (f: T -> T) => (x: T) => f (f x) ;
+      let addOne = (n: Int) => n + 1 ;
+      applyTwice [Int] addOne 10
+    """
+    
+    val optimized = optimize(program)
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.IntegerLiteral(12) => ()
   
   test("monomorphization preserves AST shape when not fully foldable"):
     val optimized = optimize("let id = [T] => (x: T) => x ; id [Int] #argc")
