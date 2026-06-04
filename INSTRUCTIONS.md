@@ -252,7 +252,7 @@ Further, all tests rely on the parser behaving correctly.
   [Common subexpression elimination](https://en.wikipedia.org/wiki/Common_subexpression_elimination) consists of replacing multiple occurrences of the same computation by a binding whose value is computed only once.
   For example, `(1 + x) * (1 + x)` can be rewritten `let y = 1 + x ; y + y`.
 
-- [ ] **Loop unrolling** (optional, brutal)
+- [x] **Loop unrolling** (optional, brutal)
 
   Loop unrolling consists of extracting work from a loop to eliminate control tests.
   For example, consider the following program:

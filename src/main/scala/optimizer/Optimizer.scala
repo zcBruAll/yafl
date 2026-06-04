@@ -10,8 +10,16 @@ object Optimizer:
 
   /** Returns `program` optimized. */
   def optimize(program: TypedProgram): TypedProgram =
-    val (optimized, updated) = rewrite(program.syntax, program.types)
-    TypedProgram(optimized, updated)
+    val (optimized, ts1) = rewrite(program.syntax, program.types)
+    
+    // 2 loop unrolling pass
+    val (unrolled1, ts2) = unrollLoopsPass(optimized, ts1)
+    val (optimized2, ts3) = rewrite(unrolled1, ts2)
+    
+    val (unrolled2, ts4) = unrollLoopsPass(optimized2, ts3)
+    val (optimized3, ts5) = rewrite(unrolled2, ts4)
+    
+    TypedProgram(optimized3, ts5)
 
   /** Recursively traverses and optimizes the syntax tree from the bottom up */
   private def rewrite(
@@ -24,9 +32,17 @@ object Optimizer:
         (Syntax(TermTree.TermApplication(f, a), tree.span), ts2)
       case e: TermTree.Conditional =>
         val (c, ts1) = rewrite(e.condition, types)
-        val (s, ts2) = rewrite(e.success, ts1)
-        val (f, ts3) = rewrite(e.failure, ts2)
-        (Syntax(TermTree.Conditional(c, s, f), tree.span), ts3)
+        c.value match
+          case TermTree.BooleanLiteral(true) =>
+            val (s, ts2) = rewrite(e.success, ts1)
+            (Syntax(TermTree.Conditional(c, s, e.failure), tree.span), ts2)
+          case TermTree.BooleanLiteral(false) =>
+            val (f, ts3) = rewrite(e.failure, ts1)
+            (Syntax(TermTree.Conditional(c, e.success, f), tree.span), ts3)
+          case _ =>
+            val (s, ts2) = rewrite(e.success, ts1)
+            val (f, ts3) = rewrite(e.failure, ts2)
+            (Syntax(TermTree.Conditional(c, s, f), tree.span), ts3)
       case e: TermTree.Binding =>
         val (i, ts1) = rewrite(e.initializer, types)
         val (b, ts2) = rewrite(e.body, ts1)
@@ -534,7 +550,53 @@ object Optimizer:
       ) =>
         val (newBody, ts) = substituteType(parameter.value.name, argument, body, types)
         Some((newBody, ts.updated(newBody, types(tree))))
-      case _ => None    
+      case _ => None   
+
+  private def unrollLoopsPass(
+    tree: Syntax[TermTree], types: TypedProgram.TypeAssignments
+  ): (Syntax[TermTree], TypedProgram.TypeAssignments) =
+    val originalType = types(tree)
+
+    val (newTree, newTypes) = tree.value match
+      case TermTree.TermApplication(
+        abstraction @ Syntax(TermTree.RecursiveAbstraction(name, _, definition), _),
+        argument
+      ) =>
+        val (newDefinition, ts1) = substitute(name.value.name, abstraction, definition, types)
+
+        val (newArgument, ts2) = unrollLoopsPass(argument, ts1)
+
+        (Syntax(TermTree.TermApplication(newDefinition, newArgument), tree.span), ts2)
+      case TermTree.TermApplication(function, arguemnt) =>
+        val (newFunction, ts1) = unrollLoopsPass(function, types)
+        val (newArgument, ts2) = unrollLoopsPass(arguemnt, ts1)
+        (Syntax(TermTree.TermApplication(newFunction, newArgument), tree.span), ts2)
+      case TermTree.Conditional(condition, success, failure) =>
+        val (newCondition, ts1) = unrollLoopsPass(condition, types)
+        val (newSuccess, ts2) = unrollLoopsPass(success, ts1)
+        val (newFailure, ts3) = unrollLoopsPass(failure, ts2)
+        (Syntax(TermTree.Conditional(newCondition, newSuccess, newFailure), tree.span), ts3)
+      case TermTree.Binding(name, initializer, body) =>
+        val (newIinitializer, ts1) = unrollLoopsPass(initializer, types)
+        val (newBody, ts2) = unrollLoopsPass(body, ts1)
+        (Syntax(TermTree.Binding(name, newIinitializer, newBody), tree.span), ts2)
+      case TermTree.TermAbstraction(parameter, ascription, body) =>
+        val (newBody, ts1) = unrollLoopsPass(body, types)
+        (Syntax(TermTree.TermAbstraction(parameter, ascription, newBody), tree.span), ts1)
+      case TermTree.TypeAbstraction(parameter, body) =>
+        val (newBody, ts1) = unrollLoopsPass(body, types)
+        (Syntax(TermTree.TypeAbstraction(parameter, newBody), tree.span), ts1)
+      case TermTree.TypeApplication(abstraction, argument) =>
+        val (newAbstraction, ts1) = unrollLoopsPass(abstraction, types)
+        (Syntax(TermTree.TypeApplication(newAbstraction, argument), tree.span), ts1)
+      case TermTree.RecursiveAbstraction(name, ascription, definition) =>
+        val (newDefinition, ts1) = unrollLoopsPass(definition, types)
+        (Syntax(TermTree.RecursiveAbstraction(name, ascription, newDefinition), tree.span), ts1)
+      case _ => (tree, types)
+
+    if (newTree != tree) (newTree, newTypes.updated(newTree, originalType))
+    else (tree, types)
+    
   
 end Optimizer
 
@@ -555,4 +617,5 @@ private def isConstant(tree: Syntax[TermTree]): Boolean =
     case TermTree.UnitLiteral => true
     case _: TermTree.TypeAbstraction => true
     case _: TermTree.TermAbstraction => true
+    case _: TermTree.RecursiveAbstraction => true
     case _ => false  

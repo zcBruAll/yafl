@@ -120,6 +120,29 @@ final class OptimizerTests extends munit.FunSuite:
         assert(!v.toString.contains("TypeApplication"))
         assert(!v.toString.contains("TypeAbstraction"))
 
+  test("loop unrolling constant evaluation"):
+    val program = """
+      let f = fix loop : Int -> Int =
+        (x: Int) => if x > 10 then x else loop (x * x) ;
+      f 4
+    """
+    val optimized = optimize(program)
+    
+    (optimized.syntax.value : @unchecked) match
+      case TermTree.IntegerLiteral(16) => ()
+
+  test("loop unrolling symbolic expansion"):
+    val program = """
+      let f = fix loop : Int -> Int =
+        (x: Int) => if x > 10 then x else loop (x * x) ;
+      f #argc
+    """
+    val optimized = optimize(program)
+    
+    import TermTree.{Conditional, Binding}
+    (optimized.syntax.value : @unchecked) match
+      case Conditional(_, _, Syntax(Binding(_, _, Syntax(Conditional(_, _, _), _)), _)) => ()
+
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def optimize(input: String): TypedProgram =
     Optimizer.optimize(Typer.check(Parser.parse(SourceFile("test", input))))
