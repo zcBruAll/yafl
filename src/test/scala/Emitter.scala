@@ -57,6 +57,70 @@ final class EmitterTests extends munit.FunSuite:
     writeArguments(wasm, IArray(10, 20, 30))
     assertEquals(main.apply()(0), 1L)
 
+  test("basic closure"):
+    val input = SourceFile("test", """
+      let plus_some = (i : Int) => (n : Int) => n + i ;
+      let plus_four = plus_some 4 ;
+      plus_four 8
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    assertEquals(main.apply()(0), 12L)
+
+  test("multiple captures"):
+    val input = SourceFile("test", """
+      let a = 10 ;
+      let b = 20 ;
+      let f = (x: Int) => a + b + x ;
+      f 5
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    assertEquals(main.apply()(0), 35L)
+
+  test("nested closures"):
+    val input = SourceFile("test", """
+      let f = (a: Int) => (b: Int) => (c: Int) => a + b + c ;
+      let fa = f 1 ;
+      let fb = fa 2 ;
+      fb 3
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    assertEquals(main.apply()(0), 6L)
+
+  test("higher-order function"):
+    val input = SourceFile("test", """
+      let apply = (f: Int -> Int) => (x: Int) => f x ;
+      let add_five = (y: Int) => y + 5 ;
+      let apply_add_five = apply add_five ;
+      apply_add_five 10
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    assertEquals(main.apply()(0), 15L)
+
+  test("#argv as a first-class function"):
+    val input = SourceFile("test", """
+      let get_arg = #argv ;
+      (get_arg 0) + (get_arg 1)
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    writeArguments(wasm, IArray(100, 50))
+    assertEquals(main.apply()(0), 150L)
+    
+  test("recursive closure"):
+    val input = SourceFile("test", """
+      let factorial = fix loop : Int -> Int =
+        (n : Int) =>
+          if n < 2 then 1 else n * (loop (n - 1)) ;
+      factorial 5
+    """)
+    val wasm = compile(input)
+    val main = wasm.`export`("main")
+    assertEquals(main.apply()(0), 120L)
+
   /** Compiles `input` to a WebAssembly module and returns an instance of it. */
   private def compile(input: SourceFile): chicory.runtime.Instance =
     val program =  Optimizer.optimize(Typer.check(Parser.parse(input)))

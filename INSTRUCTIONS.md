@@ -335,7 +335,7 @@ Most tests can only pass if you have also implemented part of the optimizer or i
   For this task, your goal is to implement monomorphization so that your compiler can process programs involving generic definitions.
   Your implementation does not have to support non-recursive definitions, thereby ensuring that monomorphization is always applicable.
 
-- [ ] **Closures** (optional, brutal)
+- [x] **Closures** (optional, brutal)
 
   The current implementation does not handle first-class functions.
   For example, the following program cannot compile without inlining `((x : Int) => x) 1`.
