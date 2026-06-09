@@ -22,6 +22,9 @@ enum OutputContents:
   /** The binary form of the WebAssembly that has been compiled. */
   case Wasm
 
+  /** Execute the WebAssembly code and return its result */
+  case Execute
+
 end OutputContents
 
 /** The command line arguments that have been passed to start the program. */
@@ -63,6 +66,8 @@ object Arguments:
           loop(i + 1, filepath, output, OutputContents.Wat)
         case "--wasm" =>
           loop(i + 1, filepath, output, OutputContents.Wasm)
+        case "--execute" =>
+          loop(i + 1, filepath, output, OutputContents.Execute)
         case a if a.startsWith("-") =>
           throw Unexpected(a)
         case a if filepath.isEmpty =>
@@ -100,10 +105,25 @@ end given
       val typed = Typer.check(untyped)
       val optimized = Optimizer.optimize(typed)
       val wat = Emitter.emit(optimized)
-      if arguments.stage == OutputContents.Wat then
-        write(wat, arguments.output)
-      else
-        write(java.util.Arrays.toString(Wat2Wasm.parse(wat)), arguments.output)
+      arguments.stage match
+        case OutputContents.Wat =>
+          write(wat, arguments.output)
+          
+        case OutputContents.Wasm =>
+          write(java.util.Arrays.toString(Wat2Wasm.parse(wat)), arguments.output)
+          
+        case OutputContents.Execute =>
+          import com.dylibso.chicory.wasm.Parser as WasmParser
+          import com.dylibso.chicory.runtime.Instance
+          
+          val wasmBytes = Wat2Wasm.parse(wat)
+          val wasmModule = WasmParser.parse(wasmBytes)
+          val instance = Instance.builder(wasmModule).build()
+          
+          val result = instance.`export`("main").apply()(0)
+          println(s"Result: $result")
+          
+        case _ => ()
 
   catch
     case e: Arguments.Error => error(None, e.toString)

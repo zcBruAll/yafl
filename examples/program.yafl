@@ -1,0 +1,5 @@
+let factorial = fix loop : Int -> Int =
+  (n : Int) =>
+    if n < 2 then 1 else n * (loop (n - 1)) ;
+
+factorial 5
